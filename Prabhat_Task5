@@ -1,0 +1,133 @@
+import com.sun.net.httpserver.HttpServer;
+import com.sun.net.httpserver.HttpHandler;
+import com.sun.net.httpserver.HttpExchange;
+
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.sql.*;
+
+public class Prabhat_Task5 {
+    private static final String DB_URL = "jdbc:sqlite:digital_library.db";
+
+    public static void main(String[] args) throws Exception {
+        initDatabase();
+        
+        // Create a lightweight, self-contained web server on port 8080
+        HttpServer server = HttpServer.create(new InetSocketAddress(8080), 0);
+        
+        // Define Web Routes
+        server.createContext("/", new FrontendHandler());
+        server.createContext("/api/books", new BookApiHandler());
+        
+        server.setExecutor(null); // creates a default executor
+        server.start();
+        
+        System.out.println("===================================================");
+        System.out.println(" Digital Library Web Server is LIVE!");
+        System.out.println(" Open your browser and go to: http://localhost:8080");
+        System.out.println("===================================================");
+    }
+
+    private static void initDatabase() {
+        try (Connection conn = DriverManager.getConnection(DB_URL);
+             Statement stmt = conn.createStatement()) {
+            
+            // Create schema with 1-to-Many multiplicity rules
+            stmt.execute("CREATE TABLE IF NOT EXISTS books (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, author TEXT, category TEXT, quantity INTEGER)");
+            stmt.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, role TEXT)");
+            stmt.execute("CREATE TABLE IF NOT EXISTS issued_books (id INTEGER PRIMARY KEY AUTOINCREMENT, book_id INTEGER, user_id INTEGER, issue_date DATE, due_date DATE, return_date DATE, fine REAL)");
+            
+            // Seed the catalogue if empty
+            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM books");
+            if (rs.getInt(1) == 0) {
+                stmt.execute("INSERT INTO books (title, author, category, quantity) VALUES ('Design Patterns', 'Erich Gamma', 'Software Engineering', 5)");
+                stmt.execute("INSERT INTO books (title, author, category, quantity) VALUES ('Introduction to Algorithms', 'Thomas H. Cormen', 'Computer Science', 3)");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // --- HTML/CSS FRONTEND ---
+    static class FrontendHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange t) throws IOException {
+            String htmlResponse = "<!DOCTYPE html>" +
+                    "<html><head><title>Digital Library</title>" +
+                    "<style>" +
+                    "body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; color: #333; margin: 0; padding: 20px; }" +
+                    "h1 { color: #2c3e50; text-align: center; }" +
+                    ".container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }" +
+                    "table { width: 100%; border-collapse: collapse; margin-top: 20px; }" +
+                    "th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }" +
+                    "th { background-color: #3498db; color: white; }" +
+                    "button { background-color: #2ecc71; color: white; border: none; padding: 8px 12px; cursor: pointer; border-radius: 4px; }" +
+                    "button:hover { background-color: #27ae60; }" +
+                    "</style></head><body>" +
+                    "<div class='container'>" +
+                    "<h1>📚 Digital Library Management</h1>" +
+                    "<h3>Available Catalogue</h3>" +
+                    "<table id='bookTable'>" +
+                    "<tr><th>Title</th><th>Author</th><th>Category</th><th>Available</th><th>Action</th></tr>" +
+                    "</table>" +
+                    "</div>" +
+                    "<script>" +
+                    "fetch('/api/books').then(response => response.json()).then(data => {" +
+                    "  const table = document.getElementById('bookTable');" +
+                    "  data.forEach(book => {" +
+                    "    let row = table.insertRow();" +
+                    "    row.insertCell(0).innerText = book.title;" +
+                    "    row.insertCell(1).innerText = book.author;" +
+                    "    row.insertCell(2).innerText = book.category;" +
+                    "    row.insertCell(3).innerText = book.quantity;" +
+                    "    let btn = document.createElement('button');" +
+                    "    btn.innerText = 'Issue Book';" +
+                    "    btn.onclick = () => alert('Book issuance logged for: ' + book.title);" +
+                    "    row.insertCell(4).appendChild(btn);" +
+                    "  });" +
+                    "});" +
+                    "</script>" +
+                    "</body></html>";
+            
+            t.sendResponseHeaders(200, htmlResponse.getBytes().length);
+            OutputStream os = t.getResponseBody();
+            os.write(htmlResponse.getBytes());
+            os.close();
+        }
+    }
+
+    // --- REST API BACKEND ---
+    static class BookApiHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange t) throws IOException {
+            StringBuilder json = new StringBuilder("[");
+            try (Connection conn = DriverManager.getConnection(DB_URL);
+                 Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT * FROM books")) {
+                
+                boolean first = true;
+                while (rs.next()) {
+                    if (!first) json.append(",");
+                    json.append("{")
+                        .append("\"id\":").append(rs.getInt("id")).append(",")
+                        .append("\"title\":\"").append(rs.getString("title")).append("\",")
+                        .append("\"author\":\"").append(rs.getString("author")).append("\",")
+                        .append("\"category\":\"").append(rs.getString("category")).append("\",")
+                        .append("\"quantity\":").append(rs.getInt("quantity"))
+                        .append("}");
+                    first = false;
+                }
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+            json.append("]");
+
+            t.getResponseHeaders().set("Content-Type", "application/json");
+            t.sendResponseHeaders(200, json.toString().getBytes().length);
+            OutputStream os = t.getResponseBody();
+            os.write(json.toString().getBytes());
+            os.close();
+        }
+    }
+}
