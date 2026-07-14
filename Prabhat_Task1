@@ -1,0 +1,200 @@
+import javax.swing.*;
+import java.awt.*;
+import java.sql.*;
+import java.util.UUID;
+
+public class Prabhat_Task1 {
+    private static final String DB_URL = "jdbc:sqlite:reservation_system.db";
+
+    public static void main(String[] args) {
+        initDatabase();
+        SwingUtilities.invokeLater(Prabhat_Task1::createAndShowLogin);
+    }
+
+    // -- DATABASE SETUP --
+    private static void initDatabase() {
+        try (Connection conn = DriverManager.getConnection(DB_URL);
+             Statement stmt = conn.createStatement()) {
+            
+            stmt.execute("CREATE TABLE IF NOT EXISTS users (username TEXT, password TEXT)");
+            stmt.execute("CREATE TABLE IF NOT EXISTS reservations (pnr TEXT PRIMARY KEY, passenger_name TEXT, train_number TEXT, train_name TEXT, class_type TEXT, journey_date TEXT, source TEXT, destination TEXT)");
+            
+            // Insert default admin user if table is empty
+            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM users");
+            if (rs.getInt(1) == 0) {
+                stmt.execute("INSERT INTO users (username, password) VALUES ('admin', 'password123')");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // --- LOGIN FORM ---
+    private static void createAndShowLogin() {
+        JFrame loginFrame = new JFrame("Login - Online Reservation");
+        loginFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        loginFrame.setSize(300, 150);
+        loginFrame.setLayout(new GridLayout(3, 2, 5, 5));
+        loginFrame.setLocationRelativeTo(null);
+
+        JTextField userField = new JTextField();
+        JPasswordField passField = new JPasswordField();
+        JButton loginBtn = new JButton("Login");
+
+        loginFrame.add(new JLabel(" Username:"));
+        loginFrame.add(userField);
+        loginFrame.add(new JLabel(" Password:"));
+        loginFrame.add(passField);
+        loginFrame.add(new JLabel("")); // Empty cell
+        loginFrame.add(loginBtn);
+
+        loginBtn.addActionListener(e -> {
+            String user = userField.getText();
+            String pass = new String(passField.getPassword());
+            if (authenticate(user, pass)) {
+                loginFrame.dispose();
+                createAndShowMainMenu();
+            } else {
+                JOptionPane.showMessageDialog(loginFrame, "Access Denied. Invalid Credentials.", "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        loginFrame.setVisible(true);
+    }
+
+    private static boolean authenticate(String username, String password) {
+        String sql = "SELECT * FROM users WHERE username = ? AND password = ?";
+        try (Connection conn = DriverManager.getConnection(DB_URL);
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, username);
+            pstmt.setString(2, password);
+            return pstmt.executeQuery().next();
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    // --- MAIN MENU & RESERVATION ---
+    private static void createAndShowMainMenu() {
+        JFrame mainFrame = new JFrame("Online Reservation System");
+        mainFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        mainFrame.setSize(500, 400);
+        mainFrame.setLocationRelativeTo(null);
+
+        JTabbedPane tabbedPane = new JTabbedPane();
+
+        // 1. Reservation Panel
+        JPanel resPanel = new JPanel(new GridLayout(8, 2, 5, 5));
+        JTextField nameF = new JTextField();
+        JTextField trainNoF = new JTextField();
+        JTextField trainNameF = new JTextField();
+        trainNameF.setEditable(false);
+        JComboBox<String> classC = new JComboBox<>(new String[]{"1AC", "2AC", "3AC", "Sleeper"});
+        JTextField dateF = new JTextField("YYYY-MM-DD");
+        JTextField sourceF = new JTextField();
+        JTextField destF = new JTextField();
+        JButton bookBtn = new JButton("Book Ticket");
+
+        // Auto-populate train name based on number (Simulated)
+        trainNoF.addActionListener(e -> {
+            String no = trainNoF.getText();
+            if (no.equals("12004")) trainNameF.setText("Shatabdi Express");
+            else if (no.equals("12951")) trainNameF.setText("Rajdhani Express");
+            else trainNameF.setText("Generic Express");
+        });
+
+        resPanel.add(new JLabel("Passenger Name:")); resPanel.add(nameF);
+        resPanel.add(new JLabel("Train Number (Press Enter):")); resPanel.add(trainNoF);
+        resPanel.add(new JLabel("Train Name:")); resPanel.add(trainNameF);
+        resPanel.add(new JLabel("Class Type:")); resPanel.add(classC);
+        resPanel.add(new JLabel("Date (YYYY-MM-DD):")); resPanel.add(dateF);
+        resPanel.add(new JLabel("Source:")); resPanel.add(sourceF);
+        resPanel.add(new JLabel("Destination:")); resPanel.add(destF);
+        resPanel.add(new JLabel("")); resPanel.add(bookBtn);
+
+        bookBtn.addActionListener(e -> {
+            if (nameF.getText().isEmpty() || trainNoF.getText().isEmpty() || dateF.getText().isEmpty()) {
+                JOptionPane.showMessageDialog(mainFrame, "Please fill all required fields.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            String pnr = UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+            String sql = "INSERT INTO reservations VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+            try (Connection conn = DriverManager.getConnection(DB_URL);
+                 PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                pstmt.setString(1, pnr);
+                pstmt.setString(2, nameF.getText());
+                pstmt.setString(3, trainNoF.getText());
+                pstmt.setString(4, trainNameF.getText());
+                pstmt.setString(5, classC.getSelectedItem().toString());
+                pstmt.setString(6, dateF.getText());
+                pstmt.setString(7, sourceF.getText());
+                pstmt.setString(8, destF.getText());
+                pstmt.executeUpdate();
+                
+                JOptionPane.showMessageDialog(mainFrame, "Booking Successful!\nYour PNR is: " + pnr, "Confirmed", JOptionPane.INFORMATION_MESSAGE);
+                nameF.setText(""); trainNoF.setText(""); trainNameF.setText("");
+            } catch (SQLException ex) {
+                ex.printStackTrace();
+            }
+        });
+
+        // 2. Cancellation Panel
+        JPanel canPanel = new JPanel(new FlowLayout());
+        JTextField pnrSearchF = new JTextField(10);
+        JButton fetchBtn = new JButton("Fetch Booking");
+        JTextArea detailsArea = new JTextArea(10, 35);
+        detailsArea.setEditable(false);
+        JButton cancelBtn = new JButton("Confirm Cancellation");
+        cancelBtn.setEnabled(false);
+
+        fetchBtn.addActionListener(e -> {
+            String sql = "SELECT * FROM reservations WHERE pnr = ?";
+            try (Connection conn = DriverManager.getConnection(DB_URL);
+                 PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                pstmt.setString(1, pnrSearchF.getText());
+                ResultSet rs = pstmt.executeQuery();
+                if (rs.next()) {
+                    detailsArea.setText("Passenger: " + rs.getString("passenger_name") + "\n" +
+                                        "Train: " + rs.getString("train_name") + " (" + rs.getString("train_number") + ")\n" +
+                                        "Route: " + rs.getString("source") + " to " + rs.getString("destination"));
+                    cancelBtn.setEnabled(true);
+                } else {
+                    detailsArea.setText("No booking found for PNR: " + pnrSearchF.getText());
+                    cancelBtn.setEnabled(false);
+                }
+            } catch (SQLException ex) {
+                ex.printStackTrace();
+            }
+        });
+
+        cancelBtn.addActionListener(e -> {
+            int confirm = JOptionPane.showConfirmDialog(mainFrame, "Are you sure you want to cancel this booking?", "Confirm Delete", JOptionPane.YES_NO_OPTION);
+            if (confirm == JOptionPane.YES_OPTION) {
+                String sql = "DELETE FROM reservations WHERE pnr = ?";
+                try (Connection conn = DriverManager.getConnection(DB_URL);
+                     PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                    pstmt.setString(1, pnrSearchF.getText());
+                    pstmt.executeUpdate();
+                    JOptionPane.showMessageDialog(mainFrame, "Booking Cancelled Successfully.");
+                    detailsArea.setText("");
+                    pnrSearchF.setText("");
+                    cancelBtn.setEnabled(false);
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
+            }
+        });
+
+        canPanel.add(new JLabel("Enter PNR:"));
+        canPanel.add(pnrSearchF);
+        canPanel.add(fetchBtn);
+        canPanel.add(new JScrollPane(detailsArea));
+        canPanel.add(cancelBtn);
+
+        tabbedPane.add("Reserve Ticket", resPanel);
+        tabbedPane.add("Cancel Ticket", canPanel);
+        mainFrame.add(tabbedPane);
+        mainFrame.setVisible(true);
+    }
+}
