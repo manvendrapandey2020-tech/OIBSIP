@@ -1,0 +1,265 @@
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
+
+class Question {
+    String text;
+    String[] options;
+    int correctOption;
+    int selectedOption = -1;
+
+    public Question(String text, String[] options, int correctOption) {
+        this.text = text;
+        this.options = options;
+        this.correctOption = correctOption;
+    }
+}
+
+public class Prabhat_Task4 {
+    private JFrame frame;
+    private JPanel cardPanel;
+    private CardLayout cardLayout;
+
+    // State Variables
+    private String currentUser = "admin";
+    private String currentPass = "password";
+    private String displayName = "Candidate";
+    
+    // Exam Variables
+    private Question[] questions;
+    private int currentQuestionIndex = 0;
+    private int timeRemaining = 600; // 10 minutes in seconds
+    private Timer examTimer;
+    
+    // UI Components for Exam
+    private JLabel timerLabel;
+    private JLabel questionLabel;
+    private JRadioButton[] optionButtons;
+    private ButtonGroup optionsGroup;
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> new Prabhat_Task4().buildGUI());
+    }
+
+    public void buildGUI() {
+        frame = new JFrame("Online Examination System");
+        frame.setSize(600, 400);
+        frame.setLocationRelativeTo(null);
+        
+        // Session Management: Confirm before exit
+        frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+        frame.addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                int confirm = JOptionPane.showConfirmDialog(frame, 
+                    "Are you sure you want to quit? Any unsaved progress will be lost.", 
+                    "Confirm Exit", JOptionPane.YES_NO_OPTION);
+                if (confirm == JOptionPane.YES_OPTION) {
+                    System.exit(0);
+                }
+            }
+        });
+
+        cardLayout = new CardLayout();
+        cardPanel = new JPanel(cardLayout);
+
+        cardPanel.add(createLoginPanel(), "LOGIN");
+        cardPanel.add(createProfilePanel(), "PROFILE");
+        cardPanel.add(createExamPanel(), "EXAM");
+        cardPanel.add(createResultPanel(), "RESULT");
+
+        frame.add(cardPanel);
+        frame.setVisible(true);
+        cardLayout.show(cardPanel, "LOGIN");
+    }
+
+    // --- 1. LOGIN SCREEN ---
+    private JPanel createLoginPanel() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(5, 5, 5, 5);
+
+        JTextField userF = new JTextField(15);
+        JPasswordField passF = new JPasswordField(15);
+        JButton loginBtn = new JButton("Login");
+
+        gbc.gridx = 0; gbc.gridy = 0; panel.add(new JLabel("Username:"), gbc);
+        gbc.gridx = 1; panel.add(userF, gbc);
+        gbc.gridx = 0; gbc.gridy = 1; panel.add(new JLabel("Password:"), gbc);
+        gbc.gridx = 1; panel.add(passF, gbc);
+        gbc.gridx = 1; gbc.gridy = 2; panel.add(loginBtn, gbc);
+
+        loginBtn.addActionListener(e -> {
+            if (userF.getText().equals(currentUser) && new String(passF.getPassword()).equals(currentPass)) {
+                userF.setText(""); passF.setText("");
+                cardLayout.show(cardPanel, "PROFILE");
+            } else {
+                JOptionPane.showMessageDialog(frame, "Invalid Credentials!");
+            }
+        });
+        return panel;
+    }
+
+    // --- 2. PROFILE UPDATE SCREEN ---
+    private JPanel createProfilePanel() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(5, 5, 5, 5);
+
+        JTextField nameF = new JTextField(displayName, 15);
+        JPasswordField passF = new JPasswordField(currentPass, 15);
+        JButton startBtn = new JButton("Save & Start Exam");
+
+        gbc.gridx = 0; gbc.gridy = 0; panel.add(new JLabel("Update Display Name:"), gbc);
+        gbc.gridx = 1; panel.add(nameF, gbc);
+        gbc.gridx = 0; gbc.gridy = 1; panel.add(new JLabel("Update Password:"), gbc);
+        gbc.gridx = 1; panel.add(passF, gbc);
+        gbc.gridx = 1; gbc.gridy = 2; panel.add(startBtn, gbc);
+
+        startBtn.addActionListener(e -> {
+            displayName = nameF.getText();
+            currentPass = new String(passF.getPassword());
+            initExam();
+            cardLayout.show(cardPanel, "EXAM");
+        });
+        return panel;
+    }
+
+    // --- 3. EXAM SCREEN ---
+    private JPanel createExamPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        
+        // Header
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        timerLabel = new JLabel("Time Remaining: 10:00");
+        timerLabel.setFont(new Font("Arial", Font.BOLD, 16));
+        timerLabel.setForeground(Color.RED);
+        headerPanel.add(new JLabel(" Online Examination "), BorderLayout.WEST);
+        headerPanel.add(timerLabel, BorderLayout.EAST);
+        panel.add(headerPanel, BorderLayout.NORTH);
+
+        // Center: Question and Options
+        JPanel qPanel = new JPanel(new GridLayout(6, 1));
+        questionLabel = new JLabel("Question text goes here");
+        questionLabel.setFont(new Font("Arial", Font.BOLD, 14));
+        qPanel.add(questionLabel);
+
+        optionsGroup = new ButtonGroup();
+        optionButtons = new JRadioButton[4];
+        for (int i = 0; i < 4; i++) {
+            optionButtons[i] = new JRadioButton("Option " + (i + 1));
+            optionsGroup.add(optionButtons[i]);
+            qPanel.add(optionButtons[i]);
+        }
+        panel.add(qPanel, BorderLayout.CENTER);
+
+        // Footer: Navigation
+        JPanel navPanel = new JPanel(new FlowLayout());
+        JButton prevBtn = new JButton("Previous");
+        JButton nextBtn = new JButton("Next");
+        JButton submitBtn = new JButton("Submit Exam");
+
+        prevBtn.addActionListener(e -> navigateQuestion(-1));
+        nextBtn.addActionListener(e -> navigateQuestion(1));
+        submitBtn.addActionListener(e -> {
+            int confirm = JOptionPane.showConfirmDialog(frame, "Submit Exam now?", "Confirm", JOptionPane.YES_NO_OPTION);
+            if (confirm == JOptionPane.YES_OPTION) finishExam();
+        });
+
+        navPanel.add(prevBtn); navPanel.add(nextBtn); navPanel.add(submitBtn);
+        panel.add(navPanel, BorderLayout.SOUTH);
+
+        return panel;
+    }
+
+    private void initExam() {
+        // Dummy Questions
+        questions = new Question[]{
+            new Question("What is the default value of a boolean variable in Java?", new String[]{"true", "false", "null", "0"}, 1),
+            new Question("Which of these is not a Java keyword?", new String[]{"static", "try", "Boolean", "void"}, 2),
+            new Question("Which component is used to compile, debug and execute Java programs?", new String[]{"JRE", "JIT", "JDK", "JVM"}, 2)
+        };
+        currentQuestionIndex = 0;
+        timeRemaining = 600;
+        
+        examTimer = new Timer(1000, e -> {
+            timeRemaining--;
+            int mins = timeRemaining / 60;
+            int secs = timeRemaining % 60;
+            timerLabel.setText(String.format("Time Remaining: %02d:%02d", mins, secs));
+            if (timeRemaining <= 0) {
+                examTimer.stop();
+                JOptionPane.showMessageDialog(frame, "Time is up! Auto-submitting exam.");
+                finishExam();
+            }
+        });
+        examTimer.start();
+        loadQuestion();
+    }
+
+    private void saveCurrentAnswer() {
+        for (int i = 0; i < 4; i++) {
+            if (optionButtons[i].isSelected()) {
+                questions[currentQuestionIndex].selectedOption = i;
+                break;
+            }
+        }
+    }
+
+    private void navigateQuestion(int step) {
+        saveCurrentAnswer();
+        currentQuestionIndex += step;
+        if (currentQuestionIndex < 0) currentQuestionIndex = 0;
+        if (currentQuestionIndex >= questions.length) currentQuestionIndex = questions.length - 1;
+        loadQuestion();
+    }
+
+    private void loadQuestion() {
+        optionsGroup.clearSelection();
+        Question q = questions[currentQuestionIndex];
+        questionLabel.setText((currentQuestionIndex + 1) + ". " + q.text);
+        for (int i = 0; i < 4; i++) {
+            optionButtons[i].setText(q.options[i]);
+            if (q.selectedOption == i) {
+                optionButtons[i].setSelected(true);
+            }
+        }
+    }
+
+    // --- 4. RESULT SCREEN ---
+    private JPanel resultPanelData = new JPanel(new GridLayout(4, 1));
+    
+    private JPanel createResultPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.add(new JLabel("Exam Completed!", SwingConstants.CENTER), BorderLayout.NORTH);
+        panel.add(resultPanelData, BorderLayout.CENTER);
+
+        JButton logoutBtn = new JButton("Logout");
+        logoutBtn.addActionListener(e -> {
+            cardLayout.show(cardPanel, "LOGIN");
+        });
+        panel.add(logoutBtn, BorderLayout.SOUTH);
+        return panel;
+    }
+
+    private void finishExam() {
+        examTimer.stop();
+        saveCurrentAnswer();
+        
+        int score = 0;
+        for (Question q : questions) {
+            if (q.selectedOption == q.correctOption) score++;
+        }
+        
+        int timeTaken = 600 - timeRemaining;
+        
+        resultPanelData.removeAll();
+        resultPanelData.add(new JLabel("Candidate: " + displayName, SwingConstants.CENTER));
+        resultPanelData.add(new JLabel("Score: " + score + " out of " + questions.length, SwingConstants.CENTER));
+        resultPanelData.add(new JLabel(String.format("Time Taken: %02d:%02d", timeTaken / 60, timeTaken % 60), SwingConstants.CENTER));
+        
+        resultPanelData.revalidate();
+        resultPanelData.repaint();
+        cardLayout.show(cardPanel, "RESULT");
+    }
+}
