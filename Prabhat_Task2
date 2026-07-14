@@ -1,0 +1,125 @@
+import java.util.ArrayList;
+import java.util.Random;
+import java.util.Scanner;
+
+public class Prabhat_Task2 {
+    
+    // Store score tracking across multiple rounds
+    private static ArrayList<String> scoreBoard = new ArrayList<>();
+    private static int roundsPlayed = 0;
+
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        System.out.println("=========================================");
+        System.out.println("   Welcome to the Number Guessing Game!  ");
+        System.out.println("=========================================");
+
+        boolean playAgain = true;
+
+        while (playAgain) {
+            playRound(scanner);
+            
+            System.out.print("\nWould you like to play another round? (yes/no): ");
+            String response = scanner.next().toLowerCase();
+            playAgain = response.equals("yes") || response.equals("y");
+        }
+
+        System.out.println("\n=========================================");
+        System.out.println("             FINAL SCOREBOARD            ");
+        System.out.println("=========================================");
+        if (scoreBoard.isEmpty()) {
+            System.out.println("No rounds were won. Better luck next time!");
+        } else {
+            for (String record : scoreBoard) {
+                System.out.println(record);
+            }
+        }
+        System.out.println("=========================================");
+        System.out.println("Thanks for playing! Goodbye.");
+        scanner.close();
+    }
+
+    private static void playRound(Scanner scanner) {
+        roundsPlayed++;
+        System.out.println("\n--- ROUND " + roundsPlayed + " ---");
+        
+        // Bonus: Difficulty Selection
+        System.out.println("Select Difficulty:");
+        System.out.println("1. Easy (1-50, 10 Attempts)");
+        System.out.println("2. Medium (1-100, 7 Attempts)");
+        System.out.println("3. Hard (1-200, 5 Attempts)");
+        System.out.print("Enter choice (1/2/3): ");
+        
+        int choice;
+        try {
+            choice = scanner.nextInt();
+        } catch (Exception e) {
+            System.out.println("Invalid input. Defaulting to Medium.");
+            scanner.next(); // Clear the bad input
+            choice = 2;
+        }
+
+        int maxRange = 100;
+        int maxAttempts = 7;
+        String diffName = "Medium";
+
+        switch (choice) {
+            case 1:
+                maxRange = 50;
+                maxAttempts = 10;
+                diffName = "Easy";
+                break;
+            case 3:
+                maxRange = 200;
+                maxAttempts = 5;
+                diffName = "Hard";
+                break;
+            case 2:
+            default:
+                break;
+        }
+
+        Random random = new Random();
+        int targetNumber = random.nextInt(maxRange) + 1;
+        int attempts = 0;
+        boolean guessedCorrectly = false;
+
+        System.out.println("\nDifficulty set to " + diffName + ".");
+        System.out.println("I have generated a number between 1 and " + maxRange + ".");
+        System.out.println("You have " + maxAttempts + " attempts to guess it.");
+
+        while (attempts < maxAttempts) {
+            System.out.print("\nAttempt " + (attempts + 1) + "/" + maxAttempts + " - Enter your guess: ");
+            
+            int guess;
+            try {
+                guess = scanner.nextInt();
+            } catch (Exception e) {
+                System.out.println("Please enter a valid integer.");
+                scanner.next(); // Clear bad input
+                continue;
+            }
+
+            attempts++;
+
+            if (guess == targetNumber) {
+                System.out.println("Correct! You guessed the number!");
+                guessedCorrectly = true;
+                break;
+            } else if (guess < targetNumber) {
+                System.out.println("Too Low!");
+            } else {
+                System.out.println("Too High!");
+            }
+        }
+
+        if (guessedCorrectly) {
+            System.out.println("Congratulations! You won Round " + roundsPlayed + ".");
+            scoreBoard.add("Round " + roundsPlayed + " (" + diffName + ") — Guessed in " + attempts + " attempts.");
+        } else {
+            System.out.println("\nYou Lost! You've used all your attempts.");
+            System.out.println("The correct number was: " + targetNumber);
+            scoreBoard.add("Round " + roundsPlayed + " (" + diffName + ") — Failed.");
+        }
+    }
+}
